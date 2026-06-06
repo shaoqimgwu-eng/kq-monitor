@@ -1,10 +1,12 @@
-name: 考勤检查
+name: Attendance Check
 
 on:
+  push:
+    branches: [master]
   schedule:
-    # 北京时间 17:10 = UTC 09:10，周一至周五
+    # Beijing 17:10 = UTC 09:10 Mon-Fri
     - cron: '10 9 * * 1-5'
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   check:

@@ -178,7 +178,9 @@ def check_one(account: dict, today: date) -> None:
         print(f"  ✗ 查询返回异常: {result}")
         return
 
-    # 3. 分析
+    # 3. 分析打卡状态
+    # 关键: 有 morningtime/afternoontime → 已打卡，无 → 未打卡
+    # 数值含义: 0=未打卡 1=正常 2=迟到 3=外勤 等
     records = result.get("result", {}).get("rows", [])
     total = result.get("result", {}).get("total", 0)
     print(f"  记录数: {total}")
@@ -195,42 +197,63 @@ def check_one(account: dict, today: date) -> None:
         )
         return
 
-    missing = []
-    detail_lines = []
     for rec in records:
-        morning = rec.get("morning", 0)
-        afternoon = rec.get("afternoon", 0)
-        night = rec.get("night", 0)
-        noon = rec.get("noon", 0)
+        morning_time = rec.get("morningtime", "")
+        afternoon_time = rec.get("afternoontime", "")
+        night_time = rec.get("nighttime", "")
+        noon_time = rec.get("noontime", "")
 
-        detail_lines.append(f"- 上午: {_status_text(morning)}")
+        # 用时间戳判断是否打卡
+        morning_ok = bool(morning_time)
+        afternoon_ok = bool(afternoon_time)
+        night_ok = bool(night_time)
 
-        # 全休息日
-        if morning == 3 and afternoon == 3 and night == 3:
-            print(f"  → 休息日，跳过")
+        print(f"    上午: {'✓ '+morning_time if morning_ok else '✗ 未打卡'}")
+        print(f"    下午: {'✓ '+afternoon_time if afternoon_ok else '✗ 未打卡'}")
+        if night_time:
+            print(f"    晚上: ✓ {night_time}")
+
+        # 如果没有任何时间戳，可能是休息日或异常
+        if not morning_ok and not afternoon_ok and not night_ok:
+            print(f"  → 全天无打卡")
+            add_notification(
+                f"⚠️ [{name}] 今日未打卡",
+                f"**账号**: {username} ({actual_name})\n"
+                f"**日期**: {today}\n"
+                f"**状态**: 全天无打卡记录\n"
+                f"**检测时间**: {datetime.now(CST).strftime('%H:%M:%S')}\n\n"
+                f"> 请立即补卡！"
+            )
             return
 
-        if morning == 0:
+        missing = []
+        detail = []
+        if not morning_ok:
             missing.append("上午(上班)")
-            detail_lines.append(f"- 下午: {_status_text(afternoon)}")
-
-        if afternoon == 0:
+            detail.append(f"上午: ❌ 未打卡")
+        else:
+            detail.append(f"上午: ✓ {morning_time}")
+        if not afternoon_ok:
             missing.append("下午(下班)")
-            detail_lines.append(f"- 晚上: {_status_text(night)}")
+            detail.append(f"下午: ❌ 未打卡")
+        else:
+            detail.append(f"下午: ✓ {afternoon_time}")
+        if night_time:
+            detail.append(f"晚上: ✓ {night_time}")
 
-    if missing:
-        print(f"  ⚠️ 缺卡: {missing}")
-        add_notification(
-            f"⚠️ [{name}] 打卡异常",
-            f"**账号**: {username} ({actual_name})\n"
-            f"**日期**: {today}\n"
-            f"**未打卡**: {'、'.join(missing)}\n"
-            f"**详情**:\n" + "\n".join(detail_lines) + "\n\n"
-            f"**检测时间**: {datetime.now(CST).strftime('%H:%M:%S')}\n\n"
-            f"> 请立即补卡！"
-        )
-    else:
-        print(f"  ✓ 打卡正常")
+        if missing:
+            print(f"  ⚠️ 缺卡: {missing}")
+            add_notification(
+                f"⚠️ [{name}] 打卡异常",
+                f"**账号**: {username} ({actual_name})\n"
+                f"**日期**: {today}\n"
+                f"**未打卡**: {'、'.join(missing)}\n"
+                f"**详情**:\n" + "\n".join(detail) + "\n\n"
+                f"**检测时间**: {datetime.now(CST).strftime('%H:%M:%S')}\n\n"
+                f"> 请立即补卡！"
+            )
+        else:
+            print(f"  ✓ 打卡正常")
 
 
 def _status_text(val: int) -> str:

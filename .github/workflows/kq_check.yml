@@ -1,0 +1,27 @@
+name: 考勤检查
+
+on:
+  schedule:
+    # 北京时间 17:10 = UTC 09:10，周一至周五
+    - cron: '10 9 * * 1-5'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run attendance check
+        run: python check.py
